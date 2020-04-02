@@ -106,7 +106,7 @@ assertion* to get the function arguments printed for free:
 | Fatal assertion                   | Nonfatal assertion                | Verifies                    |
 | --------------------------------- | --------------------------------- | --------------------------- |
 | `ASSERT_PRED1(pred1, val1)`       | `EXPECT_PRED1(pred1, val1)`       | `pred1(val1)` is true       |
-| `ASSERT_PRED2(pred2, val1, val2)` | `EXPECT_PRED2(pred2, val1, val2)` | `pred1(val1, val2)` is true |
+| `ASSERT_PRED2(pred2, val1, val2)` | `EXPECT_PRED2(pred2, val1, val2)` | `pred2(val1, val2)` is true |
 | `...`                             | `...`                             | `...`                       |
 
 <!-- mdformat on-->
@@ -465,7 +465,7 @@ You can call the function
 to assert that types `T1` and `T2` are the same. The function does nothing if
 the assertion is satisfied. If the types are different, the function call will
 fail to compile, the compiler error message will say that
-`type1 and type2 are not the same type` and most likely (depending on the compiler)
+`T1 and T2 are not the same type` and most likely (depending on the compiler)
 show you the actual values of `T1` and `T2`. This is mainly useful inside
 template code.
 
@@ -638,6 +638,7 @@ Fatal assertion                                  | Nonfatal assertion           
 ------------------------------------------------ | ------------------------------------------------ | --------
 `ASSERT_DEATH(statement, matcher);`              | `EXPECT_DEATH(statement, matcher);`              | `statement` crashes with the given error
 `ASSERT_DEATH_IF_SUPPORTED(statement, matcher);` | `EXPECT_DEATH_IF_SUPPORTED(statement, matcher);` | if death tests are supported, verifies that `statement` crashes with the given error; otherwise verifies nothing
+`ASSERT_DEBUG_DEATH(statement, matcher);`        | `EXPECT_DEBUG_DEATH(statement, matcher);`        | `statement` crashes with the given error **in debug mode**. When not in debug (i.e. `NDEBUG` is defined), this just executes `statement`
 `ASSERT_EXIT(statement, predicate, matcher);`    | `EXPECT_EXIT(statement, predicate, matcher);`    | `statement` exits with the given error, and its exit code matches `predicate`
 
 where `statement` is a statement that is expected to cause the process to die,
@@ -918,6 +919,8 @@ the `SCOPED_TRACE` macro or the `ScopedTrace` utility:
 
 ```c++
 SCOPED_TRACE(message);
+```
+```c++
 ScopedTrace trace("file_path", line_number, message);
 ```
 
@@ -953,7 +956,7 @@ path/to/foo_test.cc:11: Failure
 Value of: Bar(n)
 Expected: 1
   Actual: 2
-   Trace:
+Google Test trace:
 path/to/foo_test.cc:17: A
 
 path/to/foo_test.cc:12: Failure
@@ -1229,7 +1232,7 @@ environment, which knows how to set-up and tear-down:
 ```c++
 class Environment : public ::testing::Environment {
  public:
-  virtual ~Environment() {}
+  ~Environment() override {}
 
   // Override this to define how to set up the environment.
   void SetUp() override {}
@@ -1374,6 +1377,17 @@ function scope.
 
 NOTE: Don't forget this step! If you do your test will silently pass, but none
 of its suites will ever run!
+
+There is work in progress to make omitting `INSTANTIATE_TEST_SUITE_P` show up
+under the `GoogleTestVerification` test suite and to then make that an error.
+If you have a test suite where that omission is not an error, for example it is
+in a library that may be linked in for other reason or where the list of test
+cases is dynamic and may be empty, then this check can be suppressed by tagging
+the test suite:
+
+```c++
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(FooTest);
+```
 
 To distinguish different instances of the pattern (yes, you can instantiate it
 more than once), the first argument to `INSTANTIATE_TEST_SUITE_P` is a prefix
@@ -1803,7 +1817,7 @@ For technical reasons, there are some caveats:
 ## Registering tests programmatically
 
 The `TEST` macros handle the vast majority of all use cases, but there are few
-were runtime registration logic is required. For those cases, the framework
+where runtime registration logic is required. For those cases, the framework
 provides the `::testing::RegisterTest` that allows callers to register arbitrary
 tests dynamically.
 
@@ -2101,6 +2115,15 @@ For example:
 *   `./foo_test --gtest_filter=FooTest.*:BarTest.*-FooTest.Bar:BarTest.Foo` Runs
     everything in test suite `FooTest` except `FooTest.Bar` and everything in
     test suite `BarTest` except `BarTest.Foo`.
+
+#### Stop test execution upon first failure
+
+By default, a googletest program runs all tests the user has defined. In some
+cases (e.g. iterative test development & execution) it may be desirable stop
+test execution upon first failure (trading improved latency for completeness).
+If `GTEST_FAIL_FAST` environment variable or `--gtest_fail_fast` flag is set,
+the test runner will stop execution as soon as the first test failure is
+found.
 
 #### Temporarily Disabling Tests
 
